@@ -7,6 +7,7 @@ import pdf from 'pdf-parse';
 import { RAGSystem } from '../rag';
 import { Document } from '../rag/types';
 import cors from 'cors';
+import iconv from 'iconv-lite';
 
 const app = express();
 app.use(cors({
@@ -39,8 +40,23 @@ app.post('/api/evaluate-study', upload.single('file'), async (req, res) => {
       console.log('File received:', req.file.originalname);
       const dataBuffer = fs.readFileSync(req.file.path);
       const pdfData = await pdf(dataBuffer);
-      studyContent += '\n' + pdfData.text;
+      console.log('PDF parsed. Raw text length:', pdfData.text.length);
+      const decodedText = iconv.decode(Buffer.from(pdfData.text), 'utf-8');
+      console.log('Decoded text length:', decodedText.length);
+      console.log('First 1000 characters of decoded PDF content:', decodedText.substring(0, 1000));
+
+      // Log any significant differences between raw and decoded text
+      if (pdfData.text.length !== decodedText.length) {
+        console.log('Note: Decoded text length differs from raw text length');
+        console.log('Raw text (first 100 chars):', pdfData.text.substring(0, 100));
+        console.log('Decoded text (first 100 chars):', decodedText.substring(0, 100));
+      }
+
+      studyContent += '\n' + decodedText;
+      console.log('Total study content length after adding PDF:', studyContent.length);
+
       fs.unlinkSync(req.file.path); // Clean up the uploaded file
+      console.log('Temporary file deleted');
     }
     if (!studyContent.trim()) {
       throw new Error('No study content provided');
