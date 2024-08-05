@@ -40,3 +40,13 @@
     @apply font-heading;
   }
 }
+
+@keyframes progress {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+.animate-progress {
+  width: 100%;
+  animation: progress 2s linear infinite;
+}
