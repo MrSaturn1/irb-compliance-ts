@@ -1,11 +1,23 @@
 /** @type {import('next').NextConfig} */
+import { createRequire } from 'module';
+import path from 'path';
+
+const require = createRequire(import.meta.url);
+
 const nextConfig = {
+  distDir: '.next',
+  typescript: {
+    tsconfigPath: './tsconfig.json',
+    ignoreBuildErrors: false,
+  },
   webpack: (config, { isServer }) => {
+    config.resolve.mainFields = ['browser', 'module', 'main'];
+    
     if (!isServer) {
       config.resolve.fallback = {
         fs: false,
-        path: false,
-        os: false,
+        path: require.resolve('path-browserify'),
+        os: require.resolve('os-browserify'),
       };
     }
     
@@ -15,9 +27,16 @@ const nextConfig = {
         fullySpecified: false,
       },
     });
-    config.resolve.alias['supports-color'] = false;
+    
+    // Add this to handle the ESM package warning
+    config.resolve.alias['supports-color'] = 'supports-color/browser';
+    
+    // Add this to resolve '@' imports
+    config.resolve.alias['@'] = path.join(__dirname, './');
+    
     return config;
   },
   swcMinify: true,
 };
+
 export default nextConfig;
