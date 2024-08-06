@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
 const nextConfig = {
+  distDir: '.next',
   typescript: {
     tsconfigPath: './tsconfig.json',
     ignoreBuildErrors: false,
