@@ -5,31 +5,29 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Tokenizer = void 0;
-var gpt3_tokenizer_1 = __importDefault(require("gpt3-tokenizer"));
-var GPT3Tokenizer = typeof gpt3_tokenizer_1.default === 'function'
+const gpt3_tokenizer_1 = __importDefault(require("gpt3-tokenizer"));
+const GPT3Tokenizer = typeof gpt3_tokenizer_1.default === 'function'
     ? gpt3_tokenizer_1.default
     : gpt3_tokenizer_1.default.default;
-var Tokenizer = /** @class */ (function () {
-    function Tokenizer() {
+class Tokenizer {
+    constructor() {
         this.tokenizer = new GPT3Tokenizer({ type: 'gpt3' });
     }
-    Tokenizer.prototype.chunkDocument = function (document, maxTokens) {
-        if (maxTokens === void 0) { maxTokens = 500; }
-        var text = document.content;
-        var chunks = [];
-        var currentChunk = '';
-        var sentences = text.split(/(?<=[.!?])\s+/);
-        for (var _i = 0, sentences_1 = sentences; _i < sentences_1.length; _i++) {
-            var sentence = sentences_1[_i];
-            var tokenCount = this.countTokens(currentChunk + sentence);
+    chunkDocument(document, maxTokens = 500) {
+        const text = document.content;
+        const chunks = [];
+        let currentChunk = '';
+        const sentences = text.split(/(?<=[.!?])\s+/);
+        for (const sentence of sentences) {
+            const tokenCount = this.countTokens(currentChunk + sentence);
             if (tokenCount > maxTokens) {
                 if (currentChunk) {
                     chunks.push(currentChunk.trim());
                     currentChunk = '';
                 }
                 if (this.countTokens(sentence) > maxTokens) {
-                    var subChunks = this.chunkLongSentence(sentence, maxTokens);
-                    chunks.push.apply(chunks, subChunks);
+                    const subChunks = this.chunkLongSentence(sentence, maxTokens);
+                    chunks.push(...subChunks);
                 }
                 else {
                     currentChunk = sentence;
@@ -43,17 +41,16 @@ var Tokenizer = /** @class */ (function () {
             chunks.push(currentChunk.trim());
         }
         return chunks;
-    };
-    Tokenizer.prototype.countTokens = function (text) {
-        var encoded = this.tokenizer.encode(text);
+    }
+    countTokens(text) {
+        const encoded = this.tokenizer.encode(text);
         return encoded.bpe.length;
-    };
-    Tokenizer.prototype.chunkLongSentence = function (sentence, maxTokens) {
-        var words = sentence.split(/\s+/);
-        var chunks = [];
-        var currentChunk = '';
-        for (var _i = 0, words_1 = words; _i < words_1.length; _i++) {
-            var word = words_1[_i];
+    }
+    chunkLongSentence(sentence, maxTokens) {
+        const words = sentence.split(/\s+/);
+        const chunks = [];
+        let currentChunk = '';
+        for (const word of words) {
             if (this.countTokens(currentChunk + ' ' + word) > maxTokens) {
                 if (currentChunk) {
                     chunks.push(currentChunk.trim());
@@ -61,8 +58,8 @@ var Tokenizer = /** @class */ (function () {
                 }
                 if (this.countTokens(word) > maxTokens) {
                     // If a single word is longer than maxTokens, split it arbitrarily
-                    var subWords = word.match(new RegExp(".{1,".concat(maxTokens, "}"), 'g')) || [];
-                    chunks.push.apply(chunks, subWords);
+                    const subWords = word.match(new RegExp(`.{1,${maxTokens}}`, 'g')) || [];
+                    chunks.push(...subWords);
                 }
                 else {
                     currentChunk = word;
@@ -76,7 +73,6 @@ var Tokenizer = /** @class */ (function () {
             chunks.push(currentChunk.trim());
         }
         return chunks;
-    };
-    return Tokenizer;
-}());
+    }
+}
 exports.Tokenizer = Tokenizer;

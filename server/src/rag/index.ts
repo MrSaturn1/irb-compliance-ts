@@ -303,15 +303,16 @@ export class RAGSystem {
       // Look for titles that are on their own line or preceded by a number
       const sectionStartRegex = new RegExp(`(^|\\n)\\s*(\\d+\\.?\\s*)?${escapedTitle}\\s*$`, 'im');
       const sectionMatch = studyContent.match(sectionStartRegex);
-      if (sectionMatch) {
+      if (sectionMatch && sectionMatch.index !== undefined) {
         const startIndex = sectionMatch.index;
         const nextSectionRegex = nextTitle ? new RegExp(`(^|\\n)\\s*(\\d+\\.?\\s*)?${nextTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'im') : null;
         const endIndex = nextSectionRegex 
-          ? studyContent.slice(startIndex).search(nextSectionRegex) + startIndex
-          : studyContent.length;
+          ? studyContent.slice(startIndex).search(nextSectionRegex)
+          : -1;
+        
         sections.push({
           title: currentTitle,
-          content: studyContent.slice(startIndex, endIndex).trim()
+          content: studyContent.slice(startIndex, endIndex !== -1 ? endIndex + startIndex : studyContent.length).trim()
         });
       }
     }
