@@ -1,5 +1,4 @@
 import fs from 'fs/promises';
-import pdf from 'pdf-parse';
 
 export interface ParsedDocument {
   content: string;
@@ -14,7 +13,8 @@ export async function parseDocument(filePath: string): Promise<ParsedDocument> {
   const dataBuffer = await fs.readFile(filePath);
   
   if (filePath.endsWith('.pdf')) {
-    const pdfData = await pdf(dataBuffer);
+    const pdfParse = await import('pdf-parse');
+    const pdfData = await pdfParse.default(dataBuffer);
     return {
       content: pdfData.text,
       metadata: {
