@@ -14,6 +14,11 @@ const app = express();
 const port = process.env.PORT || 3001; // Default to 3001 if PORT is not set
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
+// Add this root route handler
+app.get('/', (req, res) => {
+  res.send('IRB Compliance Backend is running');
+});
+
 // Set up CORS
 app.use(cors({
   origin: frontendUrl,
@@ -115,7 +120,7 @@ app.post('/api/add-document', upload.single('file'), async (req, res) => {
 });
 
 // Start Server
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on http://0.0.0.0:${port}`);
   initializeRAGSystem();
 });
