@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+dotenv.config(); // Ensure this is called at the top before accessing any env variables
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
@@ -9,30 +9,38 @@ import { Document } from '../rag/types';
 import cors from 'cors';
 import iconv from 'iconv-lite';
 
+// Load environment variables
 const app = express();
+const port = process.env.PORT || 3001; // Default to 3001 if PORT is not set
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+// Set up CORS
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: frontendUrl,
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
+
 app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 const groq_api_key: string = process.env.GROQ_API_KEY || '';
 let ragSystem: RAGSystem | null = null;
 
+// Initialize RAG system
 const initializeRAGSystem = async () => {
   console.log('Initializing RAG system...');
   ragSystem = new RAGSystem(groq_api_key);
   console.log('RAG system initialized.');
 };
 
+// Evaluate Study Endpoint
 app.post('/api/evaluate-study', upload.single('file'), async (req, res) => {
   if (!ragSystem) {
     return res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
   }
   console.log('Received request to evaluate study');
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
+  res.header('Access-Control-Allow-Origin', frontendUrl);
   res.header('Access-Control-Allow-Credentials', 'true');
   try {
     let studyContent = req.body.description || '';
@@ -74,8 +82,7 @@ app.post('/api/evaluate-study', upload.single('file'), async (req, res) => {
   }
 });
 
-// In server/src/api/index.ts
-
+// Add Document Endpoint
 app.post('/api/add-document', upload.single('file'), async (req, res) => {
   if (!ragSystem) {
     return res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
@@ -83,7 +90,7 @@ app.post('/api/add-document', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
   }
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
+  res.header('Access-Control-Allow-Origin', frontendUrl);
   res.header('Access-Control-Allow-Credentials', 'true');
   try {
     const dataBuffer = fs.readFileSync(req.file.path);
@@ -107,7 +114,8 @@ app.post('/api/add-document', upload.single('file'), async (req, res) => {
   }
 });
 
-app.listen(3001, () => {
-  console.log('Server running on http://localhost:3001');
+// Start Server
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
   initializeRAGSystem();
 });

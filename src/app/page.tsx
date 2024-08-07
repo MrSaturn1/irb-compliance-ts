@@ -25,7 +25,7 @@ export default function Home() {
         formData.append('file', file);
       }
 
-      const response = await fetch('http://localhost:3001/api/evaluate-study', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/evaluate-study`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
