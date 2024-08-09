@@ -42,8 +42,13 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        if (response.status === 429 || response.status === 503) {
+          setFeedback('The server is currently busy. Please wait a moment and try again.');
+          return;
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
       }
 
       const data = await response.json();

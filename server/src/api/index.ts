@@ -83,7 +83,11 @@ app.post('/api/evaluate-study', upload.single('file'), async (req, res) => {
     });
   } catch (error) {
     console.error('Error evaluating study:', error);
-    res.status(500).json({ error: 'Error evaluating study', details: error instanceof Error ? error.message : 'Unknown error' });
+    if (error instanceof Error && error.message.includes('Rate limit')) {
+      res.status(429).json({ error: 'Rate limit reached. Please try again later.' });
+    } else {
+      next(error); // Pass the error to the custom error handler
+    }
   }
 });
 
@@ -121,6 +125,9 @@ app.post('/api/add-document', upload.single('file'), async (req, res) => {
 
 // Error Handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.header('Access-Control-Allow-Origin', frontendUrl);
+  res.header('Access-Control-Allow-Credentials', 'true');
+
   console.error(err.stack);
   res.status(err.status || 500)
      .json({
