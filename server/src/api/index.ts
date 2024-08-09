@@ -28,6 +28,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
 const upload = multer({ dest: 'uploads/' });
 const groq_api_key: string = process.env.GROQ_API_KEY || '';
 let ragSystem: RAGSystem | null = null;
@@ -86,7 +87,7 @@ app.post('/api/evaluate-study', upload.single('file'), async (req, res) => {
     if (error instanceof Error && error.message.includes('Rate limit')) {
       res.status(429).json({ error: 'Rate limit reached. Please try again later.' });
     } else {
-      next(error); // Pass the error to the custom error handler
+      res.status(500).json({ error: 'Error evaluating study', details: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
 });
@@ -123,16 +124,16 @@ app.post('/api/add-document', upload.single('file'), async (req, res) => {
   }
 });
 
-// Error Handling
+// Custom error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Always send CORS headers
   res.header('Access-Control-Allow-Origin', frontendUrl);
   res.header('Access-Control-Allow-Credentials', 'true');
-
+  
   console.error(err.stack);
-  res.status(err.status || 500)
-     .json({
-       error: err.message || 'Internal Server Error',
-     });
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+  });
 });
 
 // Start Server
