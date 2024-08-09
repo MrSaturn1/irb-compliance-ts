@@ -40,89 +40,93 @@ const initializeRAGSystem = async () => {
   console.log('RAG system initialized.');
 };
 
+function asyncHandler(fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<any>) {
+  return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      await fn(req, res, next);
+    } catch (error) {
+      console.error('Error in route handler:', error);
+      if (error instanceof Error && error.message.includes('Rate limit')) {
+        res.status(429).json({ error: 'Rate limit reached. Please try again later.' });
+      } else {
+        res.status(500).json({ error: 'Error processing request', details: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    }
+  };
+}
+
 // Evaluate Study Endpoint
-app.post('/api/evaluate-study', upload.single('file'), async (req, res) => {
+app.post('/api/evaluate-study', upload.single('file'), asyncHandler(async (req, res) => {
   if (!ragSystem) {
-    return res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
+    res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
+    return;
   }
   console.log('Received request to evaluate study');
-  res.header('Access-Control-Allow-Origin', frontendUrl);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  try {
-    let studyContent = req.body.description || '';
-    if (req.file) {
-      console.log('File received:', req.file.originalname);
-      const dataBuffer = fs.readFileSync(req.file.path);
-      const pdfData = await pdf(dataBuffer);
-      console.log('PDF parsed. Raw text length:', pdfData.text.length);
-      const decodedText = iconv.decode(Buffer.from(pdfData.text), 'utf-8');
-      console.log('Decoded text length:', decodedText.length);
-      console.log('First 1000 characters of decoded PDF content:', decodedText.substring(0, 1000));
 
-      // Log any significant differences between raw and decoded text
-      if (pdfData.text.length !== decodedText.length) {
-        console.log('Note: Decoded text length differs from raw text length');
-        console.log('Raw text (first 100 chars):', pdfData.text.substring(0, 100));
-        console.log('Decoded text (first 100 chars):', decodedText.substring(0, 100));
-      }
-
-      studyContent += '\n' + decodedText;
-      console.log('Total study content length after adding PDF:', studyContent.length);
-
-      fs.unlinkSync(req.file.path); // Clean up the uploaded file
-      console.log('Temporary file deleted');
-    }
-    if (!studyContent.trim()) {
-      throw new Error('No study content provided');
-    }
-    console.log('Study content:', studyContent.substring(0, 100) + '...');
-    const result = await ragSystem.query(studyContent);
-    console.log('Evaluation result:', result.summary.substring(0, 100) + '...');
-    res.json({ 
-      summary: result.summary,
-      fullEvaluation: result.fullEvaluation
-    });
-  } catch (error) {
-    console.error('Error evaluating study:', error);
-    if (error instanceof Error && error.message.includes('Rate limit')) {
-      res.status(429).json({ error: 'Rate limit reached. Please try again later.' });
-    } else {
-      res.status(500).json({ error: 'Error evaluating study', details: error instanceof Error ? error.message : 'Unknown error' });
-    }
-  }
-});
-
-// Add Document Endpoint
-app.post('/api/add-document', upload.single('file'), async (req, res) => {
-  if (!ragSystem) {
-    return res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
-  }
-  if (!req.file) {
-    return res.status(400).send('No file uploaded.');
-  }
-  res.header('Access-Control-Allow-Origin', frontendUrl);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  try {
+  let studyContent = req.body.description || '';
+  if (req.file) {
+    console.log('File received:', req.file.originalname);
     const dataBuffer = fs.readFileSync(req.file.path);
     const pdfData = await pdf(dataBuffer);
-    
-    const document: Document = {
-      id: req.file.filename,
-      content: pdfData.text,
-      metadata: {
-        title: req.body.title || req.file.originalname,
-        // Add any other metadata you want to include
-      }
-    };
-    await ragSystem.addDocument(document);
-    
-    fs.unlinkSync(req.file.path);
-    res.status(200).send('Document added successfully.');
-  } catch (error) {
-    console.error('Error processing PDF:', error);
-    res.status(500).send('Error processing PDF file.');
+    console.log('PDF parsed. Raw text length:', pdfData.text.length);
+    const decodedText = iconv.decode(Buffer.from(pdfData.text), 'utf-8');
+    console.log('Decoded text length:', decodedText.length);
+    console.log('First 1000 characters of decoded PDF content:', decodedText.substring(0, 1000));
+
+    // Log any significant differences between raw and decoded text
+    if (pdfData.text.length !== decodedText.length) {
+      console.log('Note: Decoded text length differs from raw text length');
+      console.log('Raw text (first 100 chars):', pdfData.text.substring(0, 100));
+      console.log('Decoded text (first 100 chars):', decodedText.substring(0, 100));
+    }
+
+    studyContent += '\n' + decodedText;
+    console.log('Total study content length after adding PDF:', studyContent.length);
+
+    fs.unlinkSync(req.file.path); // Clean up the uploaded file
+    console.log('Temporary file deleted');
   }
-});
+  
+  if (!studyContent.trim()) {
+    throw new Error('No study content provided');
+  }
+  
+  console.log('Study content:', studyContent.substring(0, 100) + '...');
+  const result = await ragSystem.query(studyContent);
+  console.log('Evaluation result:', result.summary.substring(0, 100) + '...');
+  
+  res.json({ 
+    summary: result.summary,
+    fullEvaluation: result.fullEvaluation
+  });
+}));
+
+// Add Document Endpoint
+app.post('/api/add-document', upload.single('file'), asyncHandler(async (req, res) => {
+  if (!ragSystem) {
+    res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ error: 'No file uploaded.' });
+    return;
+  }
+  
+  const dataBuffer = fs.readFileSync(req.file.path);
+  const pdfData = await pdf(dataBuffer);
+  
+  const document: Document = {
+    id: req.file.filename,
+    content: pdfData.text,
+    metadata: {
+      title: req.body.title || req.file.originalname,
+    }
+  };
+  await ragSystem.addDocument(document);
+  
+  fs.unlinkSync(req.file.path);
+  res.status(200).json({ message: 'Document added successfully.' });
+}));
 
 // Custom error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
