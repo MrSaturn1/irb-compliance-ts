@@ -119,6 +119,15 @@ app.post('/api/add-document', upload.single('file'), async (req, res) => {
   }
 });
 
+// Error Handling
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(err.status || 500)
+     .json({
+       error: err.message || 'Internal Server Error',
+     });
+});
+
 // Start Server
 app.listen(Number(port), '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:${port}`);

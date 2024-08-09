@@ -18,6 +18,11 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setFeedback(null);
+    setFullEvaluation(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
     try {
       const formData = new FormData();
@@ -33,10 +38,12 @@ export default function Home() {
         headers: {
           'Accept': 'application/json',
         },
+        signal: controller.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
@@ -55,6 +62,7 @@ export default function Home() {
       }
       setFullEvaluation(null);
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
