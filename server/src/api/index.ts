@@ -8,11 +8,22 @@ import { RAGSystem } from '../rag';
 import { Document } from '../rag/types';
 import cors from 'cors';
 import iconv from 'iconv-lite';
+import { v4 as uuidv4 } from 'uuid';
+import { RateLimiter } from '../utils/rateLimiter';
 
 // Load environment variables
 const app = express();
-const port = process.env.PORT || 3001; // Default to 3001 if PORT is not set
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+// const port = process.env.PORT || 3001; // Default to 3001 if PORT is not set
+// const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
 // Add this root route handler
 app.get('/', (req, res) => {
@@ -32,6 +43,7 @@ app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 const groq_api_key: string = process.env.GROQ_API_KEY || '';
 let ragSystem: RAGSystem | null = null;
+const rateLimiter = new RateLimiter();
 
 // Initialize RAG system
 const initializeRAGSystem = async () => {
@@ -56,50 +68,78 @@ function asyncHandler(fn: (req: express.Request, res: express.Response, next: ex
 }
 
 // Evaluate Study Endpoint
-app.post('/api/evaluate-study', upload.single('file'), asyncHandler(async (req, res) => {
+app.post('/api/evaluate-study', upload.single('file'), (req, res) => {
+  const requestId = uuidv4();
+  res.json({ requestId });
+
+  processStudy(req, requestId);
+});
+
+async function processStudy(req: express.Request, requestId: string) {
   if (!ragSystem) {
-    res.status(503).json({ error: 'RAG system is not ready yet. Please try again later.' });
+    io.emit(`study_error_${requestId}`, { error: 'RAG system is not ready yet. Please try again later.' });
     return;
   }
+
   console.log('Received request to evaluate study');
 
-  let studyContent = req.body.description || '';
-  if (req.file) {
-    console.log('File received:', req.file.originalname);
-    const dataBuffer = fs.readFileSync(req.file.path);
-    const pdfData = await pdf(dataBuffer);
-    console.log('PDF parsed. Raw text length:', pdfData.text.length);
-    const decodedText = iconv.decode(Buffer.from(pdfData.text), 'utf-8');
-    console.log('Decoded text length:', decodedText.length);
-    console.log('First 1000 characters of decoded PDF content:', decodedText.substring(0, 1000));
+  try {
+    let studyContent = req.body.description || '';
+    if (req.file) {
+      console.log('File received:', req.file.originalname);
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const pdfData = await pdf(dataBuffer);
+      console.log('PDF parsed. Raw text length:', pdfData.text.length);
+      const decodedText = iconv.decode(Buffer.from(pdfData.text), 'utf-8');
+      console.log('Decoded text length:', decodedText.length);
+      console.log('First 1000 characters of decoded PDF content:', decodedText.substring(0, 1000));
 
-    // Log any significant differences between raw and decoded text
-    if (pdfData.text.length !== decodedText.length) {
-      console.log('Note: Decoded text length differs from raw text length');
-      console.log('Raw text (first 100 chars):', pdfData.text.substring(0, 100));
-      console.log('Decoded text (first 100 chars):', decodedText.substring(0, 100));
+      if (pdfData.text.length !== decodedText.length) {
+        console.log('Note: Decoded text length differs from raw text length');
+        console.log('Raw text (first 100 chars):', pdfData.text.substring(0, 100));
+        console.log('Decoded text (first 100 chars):', decodedText.substring(0, 100));
+      }
+
+      studyContent += '\n' + decodedText;
+      console.log('Total study content length after adding PDF:', studyContent.length);
+      fs.unlinkSync(req.file.path);
+      console.log('Temporary file deleted');
     }
 
-    studyContent += '\n' + decodedText;
-    console.log('Total study content length after adding PDF:', studyContent.length);
+    if (!studyContent.trim()) {
+      throw new Error('No study content provided');
+    }
 
-    fs.unlinkSync(req.file.path); // Clean up the uploaded file
-    console.log('Temporary file deleted');
+    console.log('Study content:', studyContent.substring(0, 100) + '...');
+
+    const tokenCount = ragSystem.tokenizer.countTokens(studyContent);
+
+    const result = await rateLimiter.limit(
+      async () => {
+        io.emit(`study_status_${requestId}`, { status: 'Processing study...' });
+        return await ragSystem!.query(studyContent);
+      },
+      tokenCount
+    );
+
+    io.emit(`study_complete_${requestId}`, { 
+      summary: result.summary,
+      fullEvaluation: result.fullEvaluation
+    });
+
+  } catch (error) {
+    console.error('Error evaluating study:', error);
+    if (error instanceof Error && error.message.includes('Rate limit')) {
+      io.emit(`study_status_${requestId}`, { status: 'Rate limit reached. Waiting to retry...' });
+      // The rateLimiter will handle the waiting and retry automatically
+    } else {
+      io.emit(`study_error_${requestId}`, { 
+        error: 'Error evaluating study', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
   }
-  
-  if (!studyContent.trim()) {
-    throw new Error('No study content provided');
-  }
-  
-  console.log('Study content:', studyContent.substring(0, 100) + '...');
-  const result = await ragSystem.query(studyContent);
-  console.log('Evaluation result:', result.summary.substring(0, 100) + '...');
-  
-  res.json({ 
-    summary: result.summary,
-    fullEvaluation: result.fullEvaluation
-  });
-}));
+}
 
 // Add Document Endpoint
 app.post('/api/add-document', upload.single('file'), asyncHandler(async (req, res) => {

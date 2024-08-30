@@ -1,12 +1,13 @@
 // src/app/page.tsx
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UploadIcon } from "@/components/ui/icons";
 import { Separator } from "@/components/ui/separator";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import io from 'socket.io-client';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -14,13 +15,51 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [fullEvaluation, setFullEvaluation] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [socket, setSocket] = useState<any>(null);
+
+  useEffect(() => {
+    const newSocket = io(process.env.NEXT_PUBLIC_BACKEND_URL as string, { withCredentials: true });
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.close();
+    };
+  }, []);
+
+   useEffect(() => {
+    if (socket && requestId) {
+      socket.on(`study_status_${requestId}`, (data: { status: string }) => {
+        setFeedback(data.status);
+      });
+
+      socket.on(`study_complete_${requestId}`, (data: { summary: string, fullEvaluation: string }) => {
+        setFeedback(data.summary);
+        setFullEvaluation(data.fullEvaluation);
+        setIsLoading(false);
+      });
+
+      socket.on(`study_error_${requestId}`, (data: { error: string }) => {
+        setFeedback(`An error occurred: ${data.error}`);
+        setIsLoading(false);
+      });
+    }
+
+    return () => {
+      if (socket && requestId) {
+        socket.off(`study_status_${requestId}`);
+        socket.off(`study_complete_${requestId}`);
+        socket.off(`study_error_${requestId}`);
+      }
+    };
+  }, [socket, requestId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setFeedback(null);
     setFullEvaluation(null);
-
+    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
@@ -42,33 +81,23 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        if (response.status === 429 || response.status === 503) {
-          setFeedback('The server is currently busy. Please wait a moment and try again.');
-          return;
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      if (data && data.summary && data.fullEvaluation) {
-        setFeedback(data.summary);
-        setFullEvaluation(data.fullEvaluation);
-      } else {
-        throw new Error('Evaluation data not found in response');
-      }
+      setRequestId(data.requestId);
+      setFeedback('Processing your study...');
     } catch (error) {
       console.error('Error submitting study:', error);
       if (error instanceof Error) {
-        setFeedback(`An error occurred while evaluating the study: ${error.message}`);
+        setFeedback(`An error occurred while submitting the study: ${error.message}`);
       } else {
-        setFeedback('An unknown error occurred while evaluating the study.');
+        setFeedback('An unknown error occurred while submitting the study.');
       }
-      setFullEvaluation(null);
+      setIsLoading(false);
     } finally {
       clearTimeout(timeoutId);
-      setIsLoading(false);
     }
   };
 
