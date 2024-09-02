@@ -16,7 +16,7 @@ type Section = {
 export class RAGSystem {
   private vectorStore: VectorStore;
   private groqClient: GroqClient;
-  private tokenizer: Tokenizer;
+  public tokenizer: Tokenizer;
   private defaultDocumentsProcessedFlag: string;
   private rateLimiter: RateLimiter;
 

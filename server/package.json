@@ -30,6 +30,7 @@
     "neo4j-driver": "^5.22.0",
     "openai": "^4.52.3",
     "pdf-parse": "^1.1.1",
+    "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5",
     "tiktoken": "^1.0.15",
     "typescript": "^5.5.4",
