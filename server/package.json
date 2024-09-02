@@ -33,9 +33,11 @@
     "socket.io-client": "^4.7.5",
     "tiktoken": "^1.0.15",
     "typescript": "^5.5.4",
+    "uuid": "^10.0.0",
     "weaviate-ts-client": "^2.2.0"
   },
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2"
   }
 }

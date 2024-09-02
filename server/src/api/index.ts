@@ -10,11 +10,13 @@ import cors from 'cors';
 import iconv from 'iconv-lite';
 import { v4 as uuidv4 } from 'uuid';
 import { RateLimiter } from '../utils/rateLimiter';
+import http from 'http';
+import { Server } from 'socket.io';
 
 // Load environment variables
 const app = express();
-// const port = process.env.PORT || 3001; // Default to 3001 if PORT is not set
-// const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+const port = process.env.PORT || 3001; // Default to 3001 if PORT is not set
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 const server = http.createServer(app);
 const io = new Server(server, {
