@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { UploadIcon } from "@/components/ui/icons";
 import { Separator } from "@/components/ui/separator";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import io from 'socket.io-client';
+import io, { Socket } from 'socket.io-client';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,10 +16,27 @@ export default function Home() {
   const [fullEvaluation, setFullEvaluation] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
-  const [socket, setSocket] = useState<any>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const newSocket = io(process.env.NEXT_PUBLIC_BACKEND_URL as string, { withCredentials: true });
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!BACKEND_URL) {
+      console.error('Backend URL is not defined');
+      return;
+    }
+    const newSocket = io(BACKEND_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'] 
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Connected to server');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -30,16 +47,19 @@ export default function Home() {
    useEffect(() => {
     if (socket && requestId) {
       socket.on(`study_status_${requestId}`, (data: { status: string }) => {
+        console.log('Received status update:', data);
         setFeedback(data.status);
       });
 
       socket.on(`study_complete_${requestId}`, (data: { summary: string, fullEvaluation: string }) => {
+        console.log('Study complete:', data);
         setFeedback(data.summary);
         setFullEvaluation(data.fullEvaluation);
         setIsLoading(false);
       });
 
       socket.on(`study_error_${requestId}`, (data: { error: string }) => {
+        console.error('Study error:', data);
         setFeedback(`An error occurred: ${data.error}`);
         setIsLoading(false);
       });

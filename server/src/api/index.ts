@@ -21,7 +21,7 @@ const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: frontendUrl,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -182,8 +182,17 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Start Server
-app.listen(Number(port), '0.0.0.0', () => {
+// CHANGE: Replace the app.listen call at the end of the file with this:
+server.listen(Number(port), '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:${port}`);
   initializeRAGSystem();
+});
+
+// ADD: Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log('A client connected');
+  
+  socket.on('disconnect', () => {
+    console.log('A client disconnected');
+  });
 });
